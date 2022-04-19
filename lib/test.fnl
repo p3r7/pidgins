@@ -16,6 +16,7 @@
 
 (local chan-btn :btn)
 (local chan-enc :enc)
+(local chan-grid :grid)
 (local chan-hid :hid)
 (local chan-hid-keyboard :hid/keyb)
 (local chan-midi :midi)
@@ -26,6 +27,12 @@
 ;; CONF
 
 (var rules {})
+
+
+
+;; STATE
+
+(var g nil)
 
 
 ;; CORE
@@ -61,6 +68,13 @@
   {:chan chan-enc
    :msg {:id id
          :delta delta}})
+
+(fn grid->pgn [device x y z]
+  {:chan chan-grid
+   :msg {:dev device
+         :x x
+         :y y
+         :z z}})
 
 (fn midi->pgn [device d]
   (let [msg (midi.to_msg d)]
@@ -111,9 +125,13 @@
      :dev {:name "bleached"}
      :msg {:type "cc"}} (pprint pgn)
 
-     {:chan :hid/keyb} (pprint pgn))
+    {:chan :hid/keyb} (pprint pgn)
 
-  )
+    {:chan :btn} (pprint pgn)
+    {:chan :enc} (pprint pgn)
+
+    {:chan :grid} (pprint pgn)
+    ))
 
 ;; (fn pgn/+/2 [e1 e2]
 ;;   )
@@ -128,19 +146,28 @@
 
 ;; LISTENER FNs
 
-(fn cb-kbd [keycode v]
-  "Callback to bind to `keyboard.code'."
-  (let [pgn (kbd->pgn keycode v)]
-    ;; TODO: register it
-    (pprint pgn)))
+(fn cb-btn [id state]
+  (let [pgn (btn->pgn id state)]
+    (process-pgn pgn)))
 
-(fn init-keyboard []
-  (set keyboard.code cb-kbd))
+(fn cb-enc [id delta]
+  (let [pgn (enc->pgn id delta)]
+    (process-pgn pgn)))
+
+(fn make-cb-grid [device]
+  (fn [x y z]
+    (let [pgn (grid->pgn device x y z)]
+      ;; (pprint pgn)
+      (process-pgn pgn))))
+
+(fn init-grid []
+  (let [device {:id 1}]
+    (set g (grid.connect))
+    (set g.key (make-cb-grid device))))
 
 (fn make-cb-midi [device]
   (fn [d]
     (let [pgn (midi->pgn device d)]
-      ;; (pprint pgn)
       (process-pgn pgn))))
 
 (fn init-midi-all []
@@ -169,11 +196,20 @@
             cb (make-cb-16n)]
         (_16n.init cb)))))
 
+(fn cb-kbd [keycode v]
+  "Callback to bind to `keyboard.code'."
+  (let [pgn (kbd->pgn keycode v)]
+    (process-pgn pgn)))
+
+(fn init-keyboard []
+  (set keyboard.code cb-kbd))
+
 
 
 ;; FNS
 
 (fn init []
+  (init-grid)
   (init-midi-all)
   (init-keyboard)
 
@@ -201,4 +237,6 @@
 ;; MAIN
 
 {:init init
+ :key cb-btn
+ :enc cb-enc
  :redraw redraw}

@@ -25,3 +25,11 @@ end
 function init()
   mylib.init()
 end
+
+function key(id, state)
+  mylib.key(id, state)
+end
+
+function enc(id, delta)
+  mylib.enc(id, delta)
+end
