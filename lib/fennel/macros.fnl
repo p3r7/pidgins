@@ -550,4 +550,5 @@ Syntax:
  :macro macro*
  :macrodebug macrodebug*
  :import-macros import-macros*
- :match match-where}
+ :match match-where
+}

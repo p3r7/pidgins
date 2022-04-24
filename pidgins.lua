@@ -2,34 +2,28 @@
 -- ------------------------------------------------------------------------
 -- FENNEL
 
-function unrequire(m)
-  package.loaded[m] = nil
-  -- _G[m] = nil
-end
+local n_fennel = include('lib/norns_fennel')
+fennel = n_fennel.load_fennel()
 
-local fennel = include('lib/fennel-1.0.0/fennel')
-table.insert(package.loaders or package.searchers, fennel.searcher)
-
-local fnl_path = "/home/we/dust/code/pidgins/lib/test"
-unrequire(fnl_path) -- NB: unrequire to force recompile
-local mylib = require(fnl_path)
+local pidgins = require("lib/pidgins")
+pprint = pidgins.pprint
 
 
 -- ------------------------------------------------------------------------
 -- MAIN
 
 function redraw()
-  mylib.redraw()
+  pidgins.redraw()
 end
 
 function init()
-  mylib.init()
+  pidgins.init()
 end
 
 function key(id, state)
-  mylib.key(id, state)
+  pidgins.key(id, state)
 end
 
 function enc(id, delta)
-  mylib.enc(id, delta)
+  pidgins.enc(id, delta)
 end

@@ -1,0 +1,42 @@
+;; -*- mode: fennel; -*- vi:ft=fennel
+;; Configuration file for Fenneldoc v0.1.6
+;; https://gitlab.com/andreyorst/fenneldoc
+
+{:fennel-path {}
+ :function-signatures true
+ :ignored-args-patterns ["[a-z]"
+                         "%.%.%."
+                         "[xkf]s"
+                         "kvs"
+                         "col[0-9]"
+                         "cols?"
+                         "rest"
+                         "more"
+                         "keys"
+                         "tbl"
+                         "args"]
+ :inline-references "link"
+ :insert-comment true
+ :insert-copyright true
+ :insert-license true
+ :insert-version true
+ :keys {:copyright "_COPYRIGHT"
+        :description "_DESCRIPTION"
+        :doc-order "_DOC_ORDER"
+        :license "_LICENSE"
+        :module-name "_MODULE_NAME"
+        :version "_VERSION"}
+ :mode "checkdoc"
+ :order "alphabetic"
+ :out-dir "./doc"
+ :project-copyright "Copyright (C) 2020-2021 Andrey Listopadov"
+ :project-doc-order {}
+ :project-license "[MIT](https://gitlab.com/andreyorst/fennel-cljlib/-/raw/master/LICENSE)"
+ :project-version "v0.5.4"
+ :sandbox true
+ :test-requirements {:init-macros.fnl "(require-macros :init-macros)
+                                       (import-macros {: assert-eq} :fennel-test)
+                                       (local {: eq : vector : hash-map} (require :init))"
+                     :init.fnl "(import-macros {: assert-eq : assert-ne : assert-is : assert-not} :fennel-test)"
+                     :tests/test.fnl "(require-macros :fennel-test)"}
+ :toc true}

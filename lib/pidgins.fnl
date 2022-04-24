@@ -6,7 +6,18 @@
 (local _16n (require :pidgins.lib._16n))
 (local inspect (require :pidgins.lib.inspect))
 
-(local s (require :sequins))
+;; (local s (require :sequins))
+
+;; works -> I assume it evals the Lua
+(local f (require :pidgins.lib.fennel.fennel))
+;; does not -> I assume it evals the Fennel
+;; (local f (require :fennel))
+
+(local clj (require :pidgins.lib.cljlib))
+(import-macros cljm :pidgins.lib.cljlib)
+
+(import-macros {: match-val-syms} :pidgins.lib.macros)
+
 
 
 ;; CONSTS
@@ -34,26 +45,88 @@
 
 (var g nil)
 
+
 
 ;; CORE
 
+;; TODO: fix those to honor maps
 (fn pprint [v]
   (print (inspect v)))
 
-;; (fn flatten [t]
-;;   (let [out {}]
-;;     (each [k v (pairs t)]
-;;       (print "-------------")
-;;       (print (.. k " => " (inspect v)))
-;;       (if (= (type v) "table")
-;;           (let [{[a b]} (flatten v)]
-;;             (print (.. "TABLE " (inspect a)))
-;;             ;; FIXME: there's no way this would work
-;;             ;; (tset out [k (table.unpack k-path)] v))
-;;             (tset out k v))
-;;           (tset out [k] v)
-;;           (print "NOT TABLE")))
-;;     out))
+(fn first [tbl]
+  (. tbl 1))
+
+(fn last [tbl]
+  (. tbl (length tbl)))
+
+(fn rest [tbl]
+  [((or table.unpack _G.unpack) tbl 2)])
+
+
+
+;; CORE - MAPS
+
+(fn flatten [t level]
+  "Take nested map t and flatten the keys to be on a single level."
+  (let [out {}
+        level (or level "")]
+    (each [k v (pairs t)]
+      (if (= (type v) "table")
+          ;; at branch
+          (let [flat-v (flatten v "  ")]
+            (each [k2 v2 (pairs flat-v)]
+              (let [k-path {}]
+                (each [_ k2-el (pairs (clj.reverse k2))]
+                  (table.insert k-path k2-el))
+                (table.insert k-path k)
+                (tset out (clj.reverse k-path) v2))))
+          ;; at leaf
+          (tset out [k] v)))
+    out))
+
+(fn get-path [map k-path]
+  "Basically (apply . map k-path)."
+  (var v-tmp map)
+  (each [_ k (pairs k-path)]
+    (set v-tmp (?. v-tmp k)))
+  v-tmp)
+
+(fn set-path [map k-path v]
+  "Set value in map at k-path to v (mutates)."
+  (var v-tmp map)
+  (let [l (length k-path)]
+    (each [i k (ipairs k-path)]
+      (if (= i l)
+          (tset v-tmp k v)
+          (set v-tmp (?. v-tmp k))))))
+
+;; REVIEW: just use `cljm.into'?
+(fn m/+ [map k-v]
+  (let [flat (flatten k-v)]
+    (each [k-path v (pairs flat)]
+      (set-path map k-path (+ (get-path map k-path)
+                              v)))))
+(fn m/- [map k-v]
+  (let [flat (flatten k-v)]
+    (each [k-path v (pairs flat)]
+      (set-path map k-path (- (get-path map k-path)
+                              v)))))
+
+
+
+;; CORE - MATCH
+
+(fn matches? [map map-matcher]
+  "Basically a reimplem of the `match' macro as a fn.
+Allows for better composability and having the matchers as a conf."
+  (var res true)
+  (let [flat-matcher (flatten map-matcher)]
+    (each [k-path match-v (pairs flat-matcher)]
+      (let [v (get-path map k-path)]
+        (when (or (= v nil)
+                  (not (= v match-v)))
+          (set res false)))))
+  res)
 
 
 
@@ -79,8 +152,8 @@
 (fn midi->pgn [device d]
   (let [msg (midi.to_msg d)]
     {:chan chan-midi
-       :dev device
-       :msg msg}))
+     :dev device
+     :msg msg}))
 
 (fn _16n->pgn [device d]
   (let [msg (midi.to_msg d)]
@@ -116,31 +189,30 @@
 
 ;; DSL
 
+(fn matched-rule [pgn]
+  (clj.some #(let [[cond _cb] $1]
+               (when (matches? pgn cond)
+                 $1))
+            rules))
 
 (fn process-pgn [pgn]
+  (cljm.when-let [rule (matched-rule pgn)]
+                 (let [[_ cb] rule]
+                   (cb pgn))))
+
+(fn process-pgn-hard-code [pgn]
   ;; (match pgn rules)
   (match pgn
-
     {:chan :midi
      :dev {:name "bleached"}
      :msg {:type "cc"}} (pprint pgn)
 
-    {:chan :hid/keyb} (pprint pgn)
+     {:chan :hid/keyb} (pprint pgn)
 
-    {:chan :btn} (pprint pgn)
-    {:chan :enc} (pprint pgn)
+     {:chan :btn} (pprint pgn)
+     {:chan :enc} (pprint pgn)
 
-    {:chan :grid} (pprint pgn)
-    ))
-
-;; (fn pgn/+/2 [e1 e2]
-;;   )
-
-;; (fn pgn/+ [& es]
-;;   (accumulate [out nil
-;;                i n (ipairs es)]
-
-;;     ))
+     {:chan :grid} (pprint pgn)))
 
 
 
@@ -208,6 +280,16 @@
 
 ;; FNS
 
+;; (macro matches? [map search]
+;;   `(let [_# nil]                        ; FIXME: `do' / `progn'?
+;;      (var match?-res# false)
+;;      (pprint ,search)
+;;      (match ,map ,search                ; doesn't work as `match' is a macro as well
+;;             ;; (set match?-res# true)
+;;             (print "WTF???")
+;;             )
+;;      match?-res#))
+
 (fn init []
   (init-grid)
   (init-midi-all)
@@ -217,10 +299,12 @@
        {
         {:chan :midi
          :dev {:name "bleached"}
-         :msg {:type "cc"}} (print "YES")
-        ;; #(pprint $1)
-        ;; #(- $1 {:msg {:cc 100}})
+         :msg {:type "cc"}}
+        #(do (m/- $1 {:msg {:cc 100}})
+             (pprint $1))
+        ;;
         })
+
   )
 
 (fn redraw []
@@ -239,4 +323,5 @@
 {:init init
  :key cb-btn
  :enc cb-enc
- :redraw redraw}
+ :redraw redraw
+ :pprint pprint}
